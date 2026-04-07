@@ -1,0 +1,106 @@
+@import "tailwindcss";
+
+@theme {
+  /* ─── Series color tokens (unchanged) ─── */
+  --color-f1: #e10600;
+  --color-imsa: #00a651;
+  --color-wec: #0072ce;
+  --color-nascar: #ffb612;
+
+  /* ─── Surfaces — background shifts replace 1px borders ─── */
+  --color-surface-dim:               #131313; /* base layer / page bg     */
+  --color-surface:                   #131313; /* alias for dim             */
+  --color-surface-container-lowest:  #0e0e0e; /* input rest bg             */
+  --color-surface-container-low:     #1c1b1b; /* column / pane bg         */
+  --color-surface-container:         #201f1f; /* active / pinned column   */
+  --color-surface-container-high:    #2a2a2a; /* hover state              */
+  --color-surface-container-highest: #353534; /* cards                    */
+  --color-surface-bright:            #393939; /* input focus / floating   */
+
+  /* ─── Primary — red ─── */
+  --color-primary:              #ffb4a8; /* text on dark, icon accent */
+  --color-primary-container:    #e10600; /* CTA bg, breaking badge    */
+  --color-on-primary:           #680200;
+  --color-on-primary-container: #fff2f0;
+
+  /* ─── Secondary — yellow (live status) ─── */
+  --color-secondary-container:    #fdd000;
+  --color-on-secondary-container: #6e5900;
+
+  /* ─── Tertiary — cyan (technical data) ─── */
+  --color-tertiary: #4cd6ff;
+
+  /* ─── On-surface text ─── */
+  --color-on-surface:         #e5e2e1; /* primary text               */
+  --color-on-surface-variant: #e9bcb5; /* secondary text (warm tint) */
+
+  /* ─── Outline ─── */
+  --color-outline-variant: #5e3f3a; /* ghost borders at 15% opacity */
+
+  /* ─── Legacy aliases (keeps existing Tailwind classes working) ─── */
+  --color-background:      #131313;
+  --color-surface-raised:  #201f1f;
+  --color-border:          #2a2a2a;
+  --color-border-subtle:   #1c1b1b;
+  --color-text-primary:    #e5e2e1;
+  --color-text-secondary:  #e9bcb5;
+  --color-text-muted:      #5e3f3a;
+  --color-accent:          #ffb4a8;
+  --color-accent-hover:    #e10600;
+
+  /* ─── Fonts ─── */
+  --font-headline: var(--font-headline), 'Space Grotesk', sans-serif;
+  --font-body:     var(--font-body), 'Inter', sans-serif;
+  --font-sans:     var(--font-body), 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono:     ui-monospace, monospace;
+
+  /* ─── Radius — "engineered" sharp corners ─── */
+  --radius-sm: 0.125rem; /* 2px */
+  --radius-md: 0.125rem;
+  --radius-lg: 0.125rem;
+  --radius-xl: 0.25rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--color-surface-dim);
+  color: var(--color-on-surface);
+  font-family: var(--font-sans);
+  overflow: hidden;
+  height: 100dvh;
+}
+
+/* ─── 4px slim scrollbars (motorsport precision) ─── */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: color-mix(in srgb, #5e3f3a 15%, transparent);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #ffb4a8;
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #e10600;
+}
+
+/* ─── Glassmorphism badge utility ─── */
+.glass-badge {
+  background: rgba(57, 57, 57, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}

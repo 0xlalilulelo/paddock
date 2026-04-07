@@ -1,0 +1,36 @@
+{
+  "name": "@paddock/db",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts",
+    "./client": "./src/client.ts",
+    "./queries/*": "./src/queries/*.ts"
+  },
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:seed": "tsx src/seed.ts",
+    "db:migrate:sql": "for f in migrations/*.sql; do echo \"Running $f...\"; psql $DATABASE_URL -f $f; done",
+    "db:studio": "drizzle-kit studio",
+    "type-check": "tsc --noEmit",
+    "lint": "echo \"No lint configured for db\""
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.2",
+    "@paddock/api-types": "*",
+    "drizzle-orm": "^0.45.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "@types/pg": "^8.11.10",
+    "dotenv": "^16.4.7",
+    "drizzle-kit": "^0.31.10",
+    "pg": "^8.13.3",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
