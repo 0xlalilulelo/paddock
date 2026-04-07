@@ -1,45 +1,65 @@
-import * as cheerio from "cheerio";
-import { BaseScraper } from "./base-scraper";
+import { BaseScraper, type RawArticle } from "./base-scraper";
+import { parseRssFeed, rssItemToArticle } from "./rss-helpers";
 import type { SeriesId } from "@paddock/api-types";
 
-const SERIES_PATHS: Record<SeriesId, string> = {
-  f1: "https://www.motorsport.com/f1/news/",
-  imsa: "https://www.motorsport.com/imsa/news/",
-  wec: "https://www.motorsport.com/wec/news/",
-  nascar: "https://www.motorsport.com/nascar-cup/news/",
+const RSS_FEEDS: Record<SeriesId, string> = {
+  f1: "https://www.motorsport.com/rss/f1/news/",
+  imsa: "https://www.motorsport.com/rss/imsa/news/",
+  wec: "https://www.motorsport.com/rss/wec/news/",
+  nascar: "https://www.motorsport.com/rss/nascar-cup/news/",
 };
 
 export class MotorsportComScraper extends BaseScraper {
-  constructor(private readonly series: SeriesId) {
+  private readonly seriesId: SeriesId;
+
+  constructor(series: SeriesId) {
     super({
       sourceId: "motorsport-com",
       name: "Motorsport.com",
       baseUrl: "https://www.motorsport.com",
       series: [series],
       selectors: {
-        articleLinks: "a.ms-item__title, a[data-article-id]",
-        title: "h1.ms-article__title, h1.ms-header__title",
-        bodyText: ".ms-article__content p",
+        articleLinks: "",
+        title: "h1",
+        bodyText: ".ms-article__content p, article p",
         publishedAt: "time[datetime]",
-        imageUrl: ".ms-article__image img",
+        imageUrl: "picture img, .ms-article__image img",
       },
       requestDelayMs: 1500,
     });
+    this.seriesId = series;
   }
 
   async getArticleUrls(): Promise<string[]> {
-    const feedUrl = SERIES_PATHS[this.series];
-    const html = await this.fetchHtml(feedUrl);
-    if (!html) return [];
+    // Not used — we override scrapeAll to use RSS directly
+    return [];
+  }
 
-    const $ = cheerio.load(html);
-    const urls: string[] = [];
+  async *scrapeAll(): AsyncGenerator<RawArticle> {
+    const feedUrl = RSS_FEEDS[this.seriesId];
+    if (!feedUrl) return;
 
-    $("a.ms-item__title").each((_, el) => {
-      const href = $(el).attr("href");
-      if (href) urls.push(this.resolveUrl(href));
-    });
+    const xml = await this.fetchHtml(feedUrl);
+    if (!xml) return;
 
-    return urls.slice(0, 20);
+    const items = parseRssFeed(xml);
+    for (const item of items.slice(0, 20)) {
+      const article = rssItemToArticle(
+        item,
+        this.config.sourceId,
+        (t, b) => this.detectSeries(t, b),
+      );
+      // If RSS description is short, try to fetch full article
+      if (article.bodyText.length < 200) {
+        const full = await this.scrapeArticle(article.url);
+        if (full) {
+          full.publishedAt = article.publishedAt ?? full.publishedAt;
+          full.imageUrl = full.imageUrl ?? article.imageUrl;
+          yield full;
+          continue;
+        }
+      }
+      yield article;
+    }
   }
 }

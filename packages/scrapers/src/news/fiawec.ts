@@ -1,67 +1,44 @@
-import { BaseScraper, type RawArticle, type ScraperConfig } from "./base-scraper";
+import { BaseScraper, type RawArticle } from "./base-scraper";
+import { parseRssFeed, rssItemToArticle } from "./rss-helpers";
 
-const CONFIG: ScraperConfig = {
-  sourceId: "fiawec",
-  baseUrl: "https://www.fiawec.com",
-  series: ["wec"],
-  name: "FIA WEC",
-  selectors: {
-    articleLinks: "article a[href], div.article-item a[href]",
-    title: "h1.article-title, h1",
-    bodyText: "div.article-content, div.body-text",
-    publishedAt: "time[datetime], span.article-date",
-    imageUrl: "img.article-image, div.article-header img",
-  },
-};
-
+/**
+ * FIA WEC — JS-rendered site, no RSS feed.
+ * Uses motorsport.com/rss/wec/news/ as primary source.
+ */
 export class FiawecScraper extends BaseScraper {
   constructor() {
-    super(CONFIG);
+    super({
+      sourceId: "fiawec",
+      baseUrl: "https://www.fiawec.com",
+      series: ["wec"],
+      name: "FIA WEC",
+      selectors: {
+        articleLinks: "",
+        title: "h1",
+        bodyText: "div.article-content p, article p",
+        publishedAt: "time[datetime]",
+        imageUrl: "meta[property='og:image']",
+      },
+    });
   }
 
   async getArticleUrls(): Promise<string[]> {
-    const $ = await this.fetchCheerio("https://www.fiawec.com/en/news.html");
-    const urls: string[] = [];
-    $("a[href]").each((_, el) => {
-      const href = $(el).attr("href") ?? "";
-      if (!href) return;
-      const full = href.startsWith("http")
-        ? href
-        : `https://www.fiawec.com${href}`;
-      if (
-        (href.includes("/news/") || href.includes("/article/")) &&
-        !urls.includes(full)
-      ) {
-        urls.push(full);
-      }
-    });
-    return urls.slice(0, 20);
+    return [];
   }
 
-  async scrapeArticle(url: string): Promise<RawArticle | null> {
-    const $ = await this.fetchCheerio(url);
+  async *scrapeAll(): AsyncGenerator<RawArticle> {
+    const xml = await this.fetchHtml("https://www.motorsport.com/rss/wec/news/");
+    if (!xml) return;
 
-    const title =
-      $(CONFIG.selectors.title!).first().text().trim() ||
-      ($("meta[property='og:title']").attr("content") ?? "");
-    if (!title) return null;
-
-    const content = $(CONFIG.selectors.bodyText!).text().trim();
-    const datetimeAttr = $("time[datetime]").first().attr("datetime");
-    const publishedAt = datetimeAttr ? new Date(datetimeAttr) : new Date();
-    const imageUrl =
-      $("img.article-image").first().attr("src") ??
-      $("meta[property='og:image']").attr("content") ??
-      null;
-
-    return {
-      url,
-      title,
-      bodyText: content.slice(0, 8000),
-      publishedAt,
-      imageUrl,
-      sourceId: CONFIG.sourceId,
-      series: ["wec"],
-    };
+    const items = parseRssFeed(xml);
+    for (const item of items.slice(0, 20)) {
+      const article = rssItemToArticle(
+        item,
+        this.config.sourceId,
+        (t, b) => this.detectSeries(t, b),
+      );
+      article.series = ["wec"];
+      yield article;
+    }
   }
 }

@@ -1,74 +1,69 @@
-import { BaseScraper, type RawArticle, type ScraperConfig } from "./base-scraper";
+import { BaseScraper, type RawArticle } from "./base-scraper";
+import { parseRssFeed, rssItemToArticle } from "./rss-helpers";
 import type { SeriesId } from "@paddock/api-types";
 
-// Autosport uses section paths per series
-const SERIES_FEEDS: Record<SeriesId, string> = {
-  f1: "https://www.autosport.com/f1/",
-  imsa: "https://www.autosport.com/imsa/",
-  wec: "https://www.autosport.com/wec/",
-  nascar: "https://www.autosport.com/nascar/",
-};
-
-const CONFIG: ScraperConfig = {
-  sourceId: "autosport",
-  name: "Autosport",
-  baseUrl: "https://www.autosport.com",
-  series: [],
-  selectors: {
-    articleLinks: "article a[href], div[data-testid='article-card'] a[href]",
-    title: "h1[data-testid='article-title'], h1.article-header__title",
-    bodyText: "div[data-testid='article-body'], div.article-content",
-    publishedAt: "time[datetime], span[data-testid='article-date']",
-    imageUrl: "img[data-testid='hero-image'], picture img",
-  },
+/**
+ * Autosport (Motorsport Network) — uses RSS feed.
+ * Single feed at /rss/feed/all, filter by series keywords.
+ */
+const SERIES_KEYWORDS: Record<SeriesId, RegExp> = {
+  f1: /\bf1\b|formula.?1|grand prix|hamilton|verstappen|leclerc|norris|mclaren|ferrari|red bull|mercedes/i,
+  imsa: /\bimsa\b|weathertech|daytona|sebring|petit le mans|prototype/i,
+  wec: /\bwec\b|world endurance|le mans|hypercar/i,
+  nascar: /\bnascar\b|cup series|xfinity|truck series|daytona 500|talladega/i,
 };
 
 export class AutosportScraper extends BaseScraper {
-  constructor(series: SeriesId) {
-    super({ ...CONFIG, series: [series] });
-    this.feedUrl = SERIES_FEEDS[series];
-  }
+  private readonly seriesId: SeriesId;
 
-  private feedUrl: string;
+  constructor(series: SeriesId) {
+    super({
+      sourceId: "autosport",
+      name: "Autosport",
+      baseUrl: "https://www.autosport.com",
+      series: [series],
+      selectors: {
+        articleLinks: "",
+        title: "h1",
+        bodyText: "div.article-content p, article p",
+        publishedAt: "time[datetime]",
+        imageUrl: "picture img, img.hero-image",
+      },
+    });
+    this.seriesId = series;
+  }
 
   async getArticleUrls(): Promise<string[]> {
-    const $ = await this.fetchCheerio(this.feedUrl);
-    const urls: string[] = [];
-    $("a[href]").each((_, el) => {
-      const href = $(el).attr("href") ?? "";
-      const full = href.startsWith("http") ? href : `https://www.autosport.com${href}`;
-      if (
-        href.match(/\/news\/\d+\//) &&
-        !urls.includes(full)
-      ) {
-        urls.push(full);
-      }
-    });
-    return urls.slice(0, 20);
+    return [];
   }
 
-  async scrapeArticle(url: string): Promise<RawArticle | null> {
-    const $ = await this.fetchCheerio(url);
+  async *scrapeAll(): AsyncGenerator<RawArticle> {
+    const xml = await this.fetchHtml("https://www.autosport.com/rss/feed/all");
+    if (!xml) return;
 
-    const title = $(CONFIG.selectors.title!).first().text().trim();
-    if (!title) return null;
+    const items = parseRssFeed(xml);
+    const pattern = SERIES_KEYWORDS[this.seriesId];
 
-    const content = $(CONFIG.selectors.bodyText!).text().trim();
-    const datetimeAttr = $("time[datetime]").first().attr("datetime");
-    const publishedAt = datetimeAttr ? new Date(datetimeAttr) : new Date();
-    const imageUrl =
-      $("picture img").first().attr("src") ??
-      $("img[data-testid='hero-image']").first().attr("src") ??
-      null;
+    for (const item of items) {
+      const text = `${item.title} ${item.description}`;
+      if (!pattern.test(text)) continue;
 
-    return {
-      url,
-      title,
-      bodyText: content.slice(0, 8000),
-      publishedAt,
-      imageUrl,
-      sourceId: CONFIG.sourceId,
-      series: this.detectSeries(title, url),
-    };
+      const article = rssItemToArticle(
+        item,
+        this.config.sourceId,
+        (t, b) => this.detectSeries(t, b),
+      );
+
+      if (article.bodyText.length < 200) {
+        const full = await this.scrapeArticle(article.url);
+        if (full) {
+          full.publishedAt = article.publishedAt ?? full.publishedAt;
+          full.imageUrl = full.imageUrl ?? article.imageUrl;
+          yield full;
+          continue;
+        }
+      }
+      yield article;
+    }
   }
 }
