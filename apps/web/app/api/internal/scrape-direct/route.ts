@@ -93,7 +93,8 @@ export async function GET(req: NextRequest) {
           series = classifySeries(article.title, article.url, article.bodyText);
         }
         if (!series.length) {
-          series = [sourceId.split("-").pop() as SeriesId] || ["f1"];
+          const fallback = sourceId.split("-").pop() as SeriesId;
+          series = [fallback ?? "f1"];
         }
 
         // Summarize (skip if no AI key — store raw body excerpt)
