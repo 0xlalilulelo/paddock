@@ -29,9 +29,10 @@ export function parseRssFeed(xml: string): RssItem[] {
 
     // Image: try media:content, media:thumbnail, enclosure, or extract from description
     let imageUrl =
-      $item.find("media\\:content, content").attr("url") ??
-      $item.find("media\\:thumbnail, thumbnail").attr("url") ??
+      $item.find("media\\:content").attr("url") ??
+      $item.find("media\\:thumbnail").attr("url") ??
       $item.find("enclosure[type^='image']").attr("url") ??
+      $item.find("enclosure").attr("url") ??
       null;
 
     if (!imageUrl && description) {
