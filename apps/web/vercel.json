@@ -1,20 +1,8 @@
 {
   "crons": [
     {
-      "path": "/api/internal/scrape-trigger?tier=1",
-      "schedule": "* * * * *"
-    },
-    {
-      "path": "/api/internal/scrape-trigger?tier=2",
-      "schedule": "*/3 * * * *"
-    },
-    {
-      "path": "/api/internal/scrape-trigger?type=social",
-      "schedule": "* * * * *"
-    },
-    {
-      "path": "/api/internal/scrape-trigger?type=live",
-      "schedule": "*/1 * * * *"
+      "path": "/api/internal/scrape-trigger?all=true",
+      "schedule": "0 */12 * * *"
     },
     {
       "path": "/api/internal/calendar-sync",

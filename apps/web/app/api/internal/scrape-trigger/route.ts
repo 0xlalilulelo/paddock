@@ -24,14 +24,25 @@ export async function GET(req: NextRequest) {
   try {
     let jobCount = 0;
 
-    if (type === "social") {
+    const all = searchParams.get("all") === "true";
+
+    if (all) {
+      // Hobby plan: single daily cron runs everything
+      const [t1, t2, social, live] = await Promise.all([
+        triggerNewsScrapes(1),
+        triggerNewsScrapes(2),
+        triggerSocialScrapes(),
+        triggerLiveScrapes(),
+      ]);
+      jobCount = t1 + t2 + social + live;
+    } else if (type === "social") {
       jobCount = await triggerSocialScrapes();
     } else if (type === "live") {
       jobCount = await triggerLiveScrapes();
     } else if (tier === "1" || tier === "2") {
       jobCount = await triggerNewsScrapes(Number(tier) as 1 | 2);
     } else {
-      return NextResponse.json({ error: "Missing tier or type param" }, { status: 400 });
+      return NextResponse.json({ error: "Missing tier, type, or all param" }, { status: 400 });
     }
 
     return NextResponse.json({ ok: true, jobCount });
