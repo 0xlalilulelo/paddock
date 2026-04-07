@@ -18,7 +18,7 @@ export class TheRaceScraper extends BaseScraper {
 
   constructor(series: SeriesId) {
     super({
-      sourceId: "the-race",
+      sourceId: `the-race-${series}`,
       name: "The Race",
       baseUrl: "https://the-race.com",
       series: [series],

@@ -14,7 +14,7 @@ export class MotorsportComScraper extends BaseScraper {
 
   constructor(series: SeriesId) {
     super({
-      sourceId: "motorsport-com",
+      sourceId: `motorsport-com-${series}`,
       name: "Motorsport.com",
       baseUrl: "https://www.motorsport.com",
       series: [series],
