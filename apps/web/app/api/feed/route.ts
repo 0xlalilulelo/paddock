@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
-import { getFeedArticles } from "@paddock/db";
-import type { SeriesId, FeedPage, FeedItem } from "@paddock/api-types";
+import { getFeedArticles, getFeedSocialPosts } from "@paddock/db";
+import type { SeriesId, FeedPage, FeedItem, XAccountType } from "@paddock/api-types";
 
 // Redis is optional — falls back to direct DB when env vars are absent (local dev)
 const redis =
@@ -21,7 +21,8 @@ export async function GET(req: NextRequest) {
   const seriesParam = searchParams.get("series") ?? "f1";
   const cursor = searchParams.get("cursor");
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "20", 10), 100);
-  const type = searchParams.get("type") ?? "all";
+  const typeParam = searchParams.get("type") ?? "all";
+  const type = typeParam === "article" || typeParam === "social" ? typeParam : "all";
 
   const series = seriesParam
     .split(",")
@@ -41,28 +42,39 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const { items: rows, nextCursor } = await getFeedArticles({
-    series,
-    cursor: cursor ?? undefined,
-    limit,
-  });
+  const opts = { series, cursor: cursor ?? undefined, limit };
 
-  const items: FeedItem[] = rows.map(({ article: a, source: s, clusterCount }) => ({
-    type: "article",
-    data: {
-      id: a.id,
-      title: a.title,
-      summary: a.summary,
-      source: { id: a.sourceId!, name: s?.name ?? "", domain: s?.domain ?? "", faviconUrl: s?.faviconUrl ?? null },
-      series: a.series as SeriesId[],
-      publishedAt: a.publishedAt?.toISOString() ?? new Date().toISOString(),
-      imageUrl: a.imageUrl,
-      isBreaking: a.isBreaking,
-      clusterId: a.clusterId,
-      clusterCount: clusterCount ?? 0,
-      url: a.url,
-    },
-  }));
+  let items: FeedItem[];
+  let nextCursor: string | null;
+
+  if (type === "article") {
+    const result = await getFeedArticles(opts);
+    items = mapArticleRows(result.items);
+    nextCursor = result.nextCursor;
+  } else if (type === "social") {
+    const result = await getFeedSocialPosts(opts);
+    items = mapSocialRows(result.items);
+    nextCursor = result.nextCursor;
+  } else {
+    // type=all: fetch both in parallel, merge sorted by publishedAt desc
+    const [articleResult, socialResult] = await Promise.all([
+      getFeedArticles(opts),
+      getFeedSocialPosts(opts),
+    ]);
+
+    const merged = [
+      ...mapArticleRows(articleResult.items),
+      ...mapSocialRows(socialResult.items),
+    ].sort(
+      (a, b) =>
+        new Date(b.data.publishedAt).getTime() -
+        new Date(a.data.publishedAt).getTime()
+    );
+
+    const hasMore = merged.length > limit;
+    items = hasMore ? merged.slice(0, limit) : merged;
+    nextCursor = hasMore ? (items.at(-1)?.data.publishedAt ?? null) : null;
+  }
 
   const page: FeedPage = { items, nextCursor };
 
@@ -72,4 +84,51 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(page, {
     headers: { "Cache-Control": "public, max-age=30" },
   });
+}
+
+function mapArticleRows(
+  rows: Awaited<ReturnType<typeof getFeedArticles>>["items"]
+): FeedItem[] {
+  return rows.map(({ article: a, source: s, clusterCount }) => ({
+    type: "article" as const,
+    data: {
+      id: a.id,
+      title: a.title,
+      summary: a.summary,
+      source: {
+        id: a.sourceId!,
+        name: s?.name ?? "",
+        domain: s?.domain ?? "",
+        faviconUrl: s?.faviconUrl ?? null,
+      },
+      series: a.series as SeriesId[],
+      publishedAt: a.publishedAt?.toISOString() ?? new Date().toISOString(),
+      imageUrl: a.imageUrl,
+      isBreaking: a.isBreaking,
+      clusterId: a.clusterId,
+      clusterCount: clusterCount ?? 0,
+      url: a.url,
+    },
+  }));
+}
+
+function mapSocialRows(
+  rows: Awaited<ReturnType<typeof getFeedSocialPosts>>["items"]
+): FeedItem[] {
+  return rows.map((p) => ({
+    type: "social" as const,
+    data: {
+      id: p.id,
+      platform: "x" as const,
+      authorHandle: p.authorHandle,
+      authorDisplayName: p.authorDisplayName,
+      authorType: p.authorType as XAccountType,
+      content: p.content,
+      url: p.url,
+      series: p.series as SeriesId[],
+      publishedAt: p.publishedAt.toISOString(),
+      isBreaking: p.isBreaking,
+      mediaUrls: p.mediaUrls,
+    },
+  }));
 }

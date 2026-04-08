@@ -47,9 +47,23 @@ export async function POST(req: NextRequest) {
   const accountSeries: SeriesId[] = (account?.series as SeriesId[]) ?? ["f1"];
 
   // Try Nitter first, fall back to Playwright direct
-  let posts = await scrapeXAccount(handle, authorType, accountSeries).catch(() => []);
+  let scraperFailed = false;
+  let posts = await scrapeXAccount(handle, authorType, accountSeries).catch(() => {
+    scraperFailed = true;
+    return [];
+  });
   if (!posts.length) {
-    posts = await scrapeXAccountDirect(handle, authorType, accountSeries).catch(() => []);
+    posts = await scrapeXAccountDirect(handle, authorType, accountSeries).catch(() => {
+      scraperFailed = true;
+      return [];
+    });
+  }
+
+  if (!posts.length && scraperFailed) {
+    return NextResponse.json(
+      { error: "All scrapers failed", handle },
+      { status: 503 }
+    );
   }
 
   let inserted = 0;
@@ -73,7 +87,7 @@ export async function POST(req: NextRequest) {
           authorType: authorType,
           content: post.content,
           url: post.url,
-          series: series.length ? series : (["f1"] as SeriesId[]),
+          series: series.length ? series : accountSeries,
           publishedAt: post.publishedAt,
           isBreaking: false,
           mediaUrls: post.mediaUrls ?? [],
@@ -100,7 +114,7 @@ export async function POST(req: NextRequest) {
             authorDisplayName: handle,
             authorType: post.authorType ?? "journalist",
             content: post.content,
-            series: series.length ? series : ["f1"],
+            series: series.length ? series : accountSeries,
             publishedAt: post.publishedAt.toISOString(),
             isBreaking: false,
             mediaUrls: post.mediaUrls ?? [],

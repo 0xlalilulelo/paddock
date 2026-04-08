@@ -4,3 +4,4 @@ export * from "./schema";
 export * from "./queries/articles";
 export * from "./queries/sessions";
 export * from "./queries/users";
+export * from "./queries/social";

@@ -167,7 +167,7 @@ export async function scrapeXAccount(
     authorDisplayName: handle, // RSS doesn't include display names; enriched separately
     authorType,
     content: p.text,
-    url: `https://x.com/${handle}/status/${p.id.split("/").pop()}`,
+    url: `https://x.com/${handle}/status/${p.id.split("/").pop()?.split("#")[0] ?? ""}`,
     series,
     publishedAt: p.publishedAt,
     isRetweet: false,
